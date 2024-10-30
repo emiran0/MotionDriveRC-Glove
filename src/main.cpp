@@ -3,10 +3,16 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_ADXL345_U.h>
+#include <ESP32Servo.h>
 
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
 
+// Create a servo object
+Servo steerServo;
+
+// Define the servo pin
+int servoPin = 18;
 
 void displaySensorDetails(void)
 {
@@ -24,6 +30,7 @@ void displaySensorDetails(void)
   delay(500);
 }
 
+// Normalize the x-axis acceleration to a value between -1 and 1
 float normalizeX(float acceleration, float ms2_limit) {
   float normalized = acceleration / ms2_limit;
   if (normalized > 1) normalized = 1;
@@ -31,11 +38,17 @@ float normalizeX(float acceleration, float ms2_limit) {
   return normalized;
 }
 
+// Normalize the y-axis acceleration to a value between 0 and 2
 float normalizeY(float acceleration, float ms2_limit) {
   float normalized = acceleration / ms2_limit;
   if (normalized > 2) normalized = 2;
   else if (normalized < 0) normalized = 0;
   return normalized;
+}
+
+// Change x-axis values to servo motor angles (0-180)
+int xToAngle(float normalizedX) {
+  return static_cast<int>(90 + 90 * normalizedX);
 }
 
 void displayDataRate(void)
@@ -126,13 +139,12 @@ void displayRange(void)
 
 void setup(void) 
 {
-// #ifndef ESP8266
-//   while (!Serial); // for Leonardo/Micro/Zero
-// #endif
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Accelerometer Test"); 
   Serial.println("");
-  
+  steerServo.attach(servoPin);
+
+
   /* Initialise the sensor */
   if(!accel.begin())
   {
@@ -178,18 +190,13 @@ void loop(void)
   // Print the normalized values
   Serial.print("Direction (X): "); Serial.print(normalizedX);
   Serial.print("  Magnitude (Y): "); Serial.println(normalizedY);
-  
-  delay(300);
 
-  // /* Get a new sensor event */ 
-  // sensors_event_t event; 
-  // accel.getEvent(&event);
- 
-  // /* Display the results (acceleration is measured in m/s^2) */
-  // Serial.print("X: "); Serial.print(event.acceleration.x); Serial.print("  ");
-  // Serial.print("Y: "); Serial.print(event.acceleration.y); Serial.print("  ");
-  // Serial.println("m/s^2 ");
-  // delay(200);
-  
-  
+  // Convert the normalized x-axis value to a servo motor angle
+  int steerAngle = xToAngle(normalizedX);
+  Serial.print("Steer Angle: "); Serial.println(steerAngle);
+  // Write the angle to the servo motor
+  steerServo.write(steerAngle);
+
+  delay(100);
+
 }
