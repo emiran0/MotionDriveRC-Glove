@@ -3,16 +3,50 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_ADXL345_U.h>
-#include <ESP32Servo.h>
+
+#include <esp_now.h>
+#include <WiFi.h>
 
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
 
-// Create a servo object
-Servo steerServo;
+#define CHANNEL 1
 
-// Define the servo pin
-int servoPin = 18;
+/** This is all the data about the peer **/
+esp_now_peer_info_t slave;
+
+/** The all important data! **/
+uint8_t data = 0;
+
+/** Scan for slaves in AP mode and ad as peer if found **/
+void ScanForSlave() {
+  int8_t scanResults = WiFi.scanNetworks();
+
+  for (int i = 0; i < scanResults; ++i) {
+    String SSID = WiFi.SSID(i);
+    String BSSIDstr = WiFi.BSSIDstr(i);
+
+    if (SSID.indexOf("RX") == 0) {
+
+      int mac[6];
+      if ( 6 == sscanf(BSSIDstr.c_str(), "%x:%x:%x:%x:%x:%x",  &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5] ) ) {
+        for (int ii = 0; ii < 6; ++ii ) {
+          slave.peer_addr[ii] = (uint8_t) mac[ii];
+        }
+      }
+
+      slave.channel = CHANNEL; // pick a channel
+      slave.encrypt = 0; // no encryption
+      break;
+    }
+  }
+}
+
+/** callback when data is sent from Master to Slave **/
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("I sent my data -> ");
+  Serial.println(data);
+}
 
 void displaySensorDetails(void)
 {
@@ -48,7 +82,7 @@ float normalizeY(float acceleration, float ms2_limit) {
 
 // Change x-axis values to servo motor angles (0-180)
 int xToAngle(float normalizedX) {
-  return static_cast<int>(90 + 90 * normalizedX);
+  return static_cast<uint8_t>(90 + 90 * normalizedX);
 }
 
 void displayDataRate(void)
@@ -142,8 +176,12 @@ void setup(void)
   Serial.begin(115200);
   Serial.println("Accelerometer Test"); 
   Serial.println("");
-  steerServo.attach(servoPin);
 
+  WiFi.mode(WIFI_STA);
+  esp_now_init();
+  esp_now_register_send_cb(OnDataSent);
+  ScanForSlave(); // WiFi.macAddress()
+  esp_now_add_peer(&slave);
 
   /* Initialise the sensor */
   if(!accel.begin())
@@ -192,11 +230,8 @@ void loop(void)
   Serial.print("  Magnitude (Y): "); Serial.println(normalizedY);
 
   // Convert the normalized x-axis value to a servo motor angle
-  int steerAngle = xToAngle(normalizedX);
+  uint8_t steerAngle = xToAngle(normalizedX);
   Serial.print("Steer Angle: "); Serial.println(steerAngle);
-  // Write the angle to the servo motor
-  steerServo.write(steerAngle);
-
-  delay(100);
+  esp_now_send(slave.peer_addr, &steerAngle, sizeof(steerAngle));
 
 }
