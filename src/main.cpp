@@ -10,42 +10,20 @@
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
 
-#define CHANNEL 1
+typedef struct {
+  int x;
+  int y;
+} DataPacket;
 
-/** This is all the data about the peer **/
-esp_now_peer_info_t slave;
+DataPacket dataToSend;
+esp_now_peer_info_t peerInfo;
+uint8_t peerAddress[] = {0xEC, 0x62, 0x60, 0x57, 0x23, 0x2D};
 
-/** The all important data! **/
-uint8_t data = 0;
-
-/** Scan for slaves in AP mode and ad as peer if found **/
-void ScanForSlave() {
-  int8_t scanResults = WiFi.scanNetworks();
-
-  for (int i = 0; i < scanResults; ++i) {
-    String SSID = WiFi.SSID(i);
-    String BSSIDstr = WiFi.BSSIDstr(i);
-
-    if (SSID.indexOf("RX") == 0) {
-
-      int mac[6];
-      if ( 6 == sscanf(BSSIDstr.c_str(), "%x:%x:%x:%x:%x:%x",  &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5] ) ) {
-        for (int ii = 0; ii < 6; ++ii ) {
-          slave.peer_addr[ii] = (uint8_t) mac[ii];
-        }
-      }
-
-      slave.channel = CHANNEL; // pick a channel
-      slave.encrypt = 0; // no encryption
-      break;
-    }
-  }
-}
-
-/** callback when data is sent from Master to Slave **/
-void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.print("I sent my data -> ");
-  Serial.println(data);
+void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("Last Packet Send Status: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Fail");
+  // Serial.print("Status Code: ");
+  // Serial.println(status);
 }
 
 void displaySensorDetails(void)
@@ -75,7 +53,7 @@ float normalizeX(float acceleration, float ms2_limit) {
 // Normalize the y-axis acceleration to a value between 0 and 2
 float normalizeY(float acceleration, float ms2_limit) {
   float normalized = acceleration / ms2_limit;
-  if (normalized > 2) normalized = 2;
+  if (normalized > 1) normalized = 1;
   else if (normalized < 0) normalized = 0;
   return normalized;
 }
@@ -178,10 +156,22 @@ void setup(void)
   Serial.println("");
 
   WiFi.mode(WIFI_STA);
-  esp_now_init();
-  esp_now_register_send_cb(OnDataSent);
-  ScanForSlave(); // WiFi.macAddress()
-  esp_now_add_peer(&slave);
+
+  if (esp_now_init() != ESP_OK) {
+      Serial.println("ESP-NOW Initialization Failed on Transmitter!");
+      return;
+  }
+
+  esp_now_register_send_cb(onDataSent);
+  memcpy(peerInfo.peer_addr, peerAddress, sizeof(peerAddress));
+  peerInfo.channel = 1;
+  peerInfo.encrypt = false;
+
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+      Serial.println("Failed to add peer!");
+  } else {
+      Serial.println("Peer added successfully!");
+  }
 
   /* Initialise the sensor */
   if(!accel.begin())
@@ -232,6 +222,13 @@ void loop(void)
   // Convert the normalized x-axis value to a servo motor angle
   uint8_t steerAngle = xToAngle(normalizedX);
   Serial.print("Steer Angle: "); Serial.println(steerAngle);
-  esp_now_send(slave.peer_addr, &steerAngle, sizeof(steerAngle));
+
+  // Prepare the data packet to send to the receiver node. (x: steerAngle, y: gasPedal)
+  dataToSend.x = steerAngle;
+  dataToSend.y = static_cast<int>(normalizedY * 250);
+
+  // Sending data to the receiver node.
+  esp_now_send(peerAddress, (uint8_t *)&dataToSend, sizeof(dataToSend));
+  delay(15);
 
 }
