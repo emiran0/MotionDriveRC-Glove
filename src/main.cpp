@@ -15,15 +15,18 @@ typedef struct {
   int y;
 } DataPacket;
 
+// Function variables
+float steerSensitivityThreshold = 0.1; // Potentially will be changed
+float gasPedalSensitivityThreshold = 0.1; // Potentially will be changed
+
 DataPacket dataToSend;
 esp_now_peer_info_t peerInfo;
-uint8_t peerAddress[] = {0xEC, 0x62, 0x60, 0x57, 0x23, 0x2D};
+uint8_t peerAddress[] = {0x0C, 0xB8, 0x15, 0x5A, 0xFD, 0x39}; // Car 1 
+// uint8_t peerAddress[] = {0x14, 0x2B, 0x2F, 0xC8, 0xCE, 0xFD}; // Car 2
 
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("Last Packet Send Status: ");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Fail");
-  // Serial.print("Status Code: ");
-  // Serial.println(status);
 }
 
 void displaySensorDetails(void)
@@ -47,6 +50,11 @@ float normalizeX(float acceleration, float ms2_limit) {
   float normalized = acceleration / ms2_limit;
   if (normalized > 1) normalized = 1;
   else if (normalized < -1) normalized = -1;
+
+  if (normalized < steerSensitivityThreshold && normalized > -steerSensitivityThreshold) {
+    normalized = 0;
+  }
+
   return normalized;
 }
 
@@ -54,13 +62,20 @@ float normalizeX(float acceleration, float ms2_limit) {
 float normalizeY(float acceleration, float ms2_limit) {
   float normalized = acceleration / ms2_limit;
   if (normalized > 1) normalized = 1;
-  else if (normalized < 0) normalized = 0;
+  else if (normalized < -1) normalized = -1;
+
+  if (normalized < gasPedalSensitivityThreshold && normalized > -gasPedalSensitivityThreshold) {
+    normalized = 0;
+  } else {
+    normalized = normalized + 1;
+  }
+
   return normalized;
 }
 
 // Change x-axis values to servo motor angles (0-180)
 int xToAngle(float normalizedX) {
-  return static_cast<uint8_t>(90 + 90 * normalizedX);
+  return static_cast<uint8_t>(90 + 55 * normalizedX);
 }
 
 void displayDataRate(void)
@@ -194,6 +209,8 @@ void setup(void)
   displayDataRate();
   displayRange();
   Serial.println("");
+
+  delay(500);
 }
 
 void loop(void) 
@@ -225,7 +242,7 @@ void loop(void)
 
   // Prepare the data packet to send to the receiver node. (x: steerAngle, y: gasPedal)
   dataToSend.x = steerAngle;
-  dataToSend.y = static_cast<int>(normalizedY * 250);
+  dataToSend.y = static_cast<int>(normalizedY * 150);
 
   // Sending data to the receiver node.
   esp_now_send(peerAddress, (uint8_t *)&dataToSend, sizeof(dataToSend));
