@@ -16,13 +16,15 @@ typedef struct {
 } DataPacket;
 
 // Function variables
-float steerSensitivityThreshold = 0.1; // Potentially will be changed
-float gasPedalSensitivityThreshold = 0.1; // Potentially will be changed
+float speedLimit = 150.0; // Speed limit for the gas pedal.
+
+float steerSensitivityThreshold = 0.08; // Potentially will be changed
+float gasPedalSensitivityThreshold = 0.08; // Potentially will be changed
 
 DataPacket dataToSend;
 esp_now_peer_info_t peerInfo;
-uint8_t peerAddress[] = {0x0C, 0xB8, 0x15, 0x5A, 0xFD, 0x39}; // Car 1 
-// uint8_t peerAddress[] = {0x14, 0x2B, 0x2F, 0xC8, 0xCE, 0xFD}; // Car 2
+// uint8_t peerAddress[] = {0x0C, 0xB8, 0x15, 0x5A, 0xFD, 0x39}; // Car 1 
+uint8_t peerAddress[] = {0x14, 0x2B, 0x2F, 0xC8, 0xCE, 0xFD}; // Car 2
 
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("Last Packet Send Status: ");
@@ -51,9 +53,9 @@ float normalizeX(float acceleration, float ms2_limit) {
   if (normalized > 1) normalized = 1;
   else if (normalized < -1) normalized = -1;
 
-  if (normalized < steerSensitivityThreshold && normalized > -steerSensitivityThreshold) {
-    normalized = 0;
-  }
+  // if (normalized < steerSensitivityThreshold || normalized > -steerSensitivityThreshold) {
+  //   normalized = 0;
+  // }
 
   return normalized;
 }
@@ -64,11 +66,11 @@ float normalizeY(float acceleration, float ms2_limit) {
   if (normalized > 1) normalized = 1;
   else if (normalized < -1) normalized = -1;
 
-  if (normalized < gasPedalSensitivityThreshold && normalized > -gasPedalSensitivityThreshold) {
-    normalized = 0;
-  } else {
-    normalized = normalized + 1;
-  }
+  // if (normalized < gasPedalSensitivityThreshold || normalized > -gasPedalSensitivityThreshold) {
+  //   normalized = 0;
+  // } else {
+  //   normalized = normalized + 1;
+  // }
 
   return normalized;
 }
@@ -242,7 +244,7 @@ void loop(void)
 
   // Prepare the data packet to send to the receiver node. (x: steerAngle, y: gasPedal)
   dataToSend.x = steerAngle;
-  dataToSend.y = static_cast<int>(normalizedY * 150);
+  dataToSend.y = static_cast<int>(normalizedY * speedLimit);
 
   // Sending data to the receiver node.
   esp_now_send(peerAddress, (uint8_t *)&dataToSend, sizeof(dataToSend));
