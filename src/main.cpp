@@ -53,9 +53,10 @@ float normalizeX(float acceleration, float ms2_limit) {
   if (normalized > 1) normalized = 1;
   else if (normalized < -1) normalized = -1;
 
-  // if (normalized < steerSensitivityThreshold || normalized > -steerSensitivityThreshold) {
-  //   normalized = 0;
-  // }
+  // Low angle steer adjustment for sensitivity.
+  if (abs(normalized) < steerSensitivityThreshold) {
+    normalized = 0;
+  }
 
   return normalized;
 }
@@ -66,11 +67,10 @@ float normalizeY(float acceleration, float ms2_limit) {
   if (normalized > 1) normalized = 1;
   else if (normalized < -1) normalized = -1;
 
-  // if (normalized < gasPedalSensitivityThreshold || normalized > -gasPedalSensitivityThreshold) {
-  //   normalized = 0;
-  // } else {
-  //   normalized = normalized + 1;
-  // }
+  // Stationary speed adjustment.
+  if (abs(normalized) < gasPedalSensitivityThreshold) {
+    normalized = 0;
+  }
 
   return normalized;
 }
