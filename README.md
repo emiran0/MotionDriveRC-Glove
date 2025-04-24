@@ -1,3 +1,5 @@
+![](media/MotionDriveRC_logo.png)
+
 # MotionDriveRC-Glove
 
 **MotionDriveRC** is a wearable gesture-based control system for an RC car. The glove uses an ADXL345 accelerometer and ESP32 microcontroller to capture hand motions and translate them into real-time steering and throttle commands via ESP-NOW wireless communication.
