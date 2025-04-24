@@ -16,7 +16,7 @@ typedef struct {
 } DataPacket;
 
 // Function variables
-float speedLimit = 150.0; // Speed limit for the gas pedal.
+float speedLimit = 250.0; // Speed limit for the gas pedal.
 
 float steerSensitivityThreshold = 0.08; // Potentially will be changed
 float gasPedalSensitivityThreshold = 0.08; // Potentially will be changed
